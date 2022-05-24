@@ -8,8 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout files
+        uses: actions/checkout@v2
         run: |
           echo Checkout files...
+          ls
 
   create-state-bucket:
     runs-on: ubuntu-latest
