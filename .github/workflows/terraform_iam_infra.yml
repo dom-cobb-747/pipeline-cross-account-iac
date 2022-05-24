@@ -1,7 +1,7 @@
 name: "1. Deploy Infra for IAM cross-account"
 on:
   push:
-    master
+    branches: [master]
 
 jobs:
   checkout-files:
