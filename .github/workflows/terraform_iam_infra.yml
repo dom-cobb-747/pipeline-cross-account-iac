@@ -7,17 +7,30 @@ jobs:
   checkout-files:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout files
+      - name: Checkout Files
         uses: actions/checkout@v2
 
-      - name: Listing files
-        run: |
-          echo Listing files...
-          ls
-
-  create-state-bucket:
+  check-state-bucket:
     runs-on: ubuntu-latest
     steps:
-      - name: Create state bucket 
+      - name: Create State Bucket
         run: |
-          echo Create state bucket...
+        BUCKET_EXISTS=$(aws s3api head-bucket --bucket $BUCKET_NAME 2>&1 || true)
+        if [[ -z "$BUCKET_EXISTS" ]]; then 
+            echo "Bucket already exist"
+        else 
+            echo "Creating bucket"
+            suffix=`(date '+%b-%d';) | tr '[:upper:]' '[:lower:]'`
+            BUCKET_NAME=domcobb747-"${suffix}" && echo $BUCKET_NAME
+            echo Create state bucket...
+            aws s3api create-bucket \
+                --bucket $BUCKET_NAME \
+                --region us-east-1  
+        fi
+
+  create-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Infra
+        run: |
+        terraform init -backend-config "bucket=$TF_VAR_state_bucket" -reconfigure

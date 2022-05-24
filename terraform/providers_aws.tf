@@ -14,7 +14,6 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = var.bucket_name
     key     = "terraform.tfstate"
     region  = "us-east-1"
     profile = "domcobb747-cross-account"
@@ -24,4 +23,11 @@ terraform {
 provider "aws" {
   profile = "aws-ct-default"
   region  = "us-east-1"
+}
+
+data "terraform_remote_state" "state" {
+  backend = "s3"
+  config {
+    bucket     = "${var.state_bucket}"
+  }
 }
