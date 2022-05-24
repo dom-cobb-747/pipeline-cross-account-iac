@@ -17,4 +17,3 @@ jobs:
       - name: Create state bucket 
         run: |
           echo Create state bucket...
-
