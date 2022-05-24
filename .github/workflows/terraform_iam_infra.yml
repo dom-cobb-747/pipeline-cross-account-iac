@@ -9,8 +9,8 @@ jobs:
     steps:
       - name: Checkout files
         uses: actions/checkout@v2
+
       - name: Listing files
-        uses: actions/checkout@v2
         run: |
           echo Listing files...
           ls
