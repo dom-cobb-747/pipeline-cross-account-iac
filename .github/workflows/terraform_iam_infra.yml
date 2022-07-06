@@ -14,23 +14,75 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create State Bucket
+        id: s3
         run: |
-        BUCKET_EXISTS=$(aws s3api head-bucket --bucket $BUCKET_NAME 2>&1 || true)
-        if [[ -z "$BUCKET_EXISTS" ]]; then 
-            echo "Bucket already exist"
-        else 
-            echo "Creating bucket"
-            suffix=`(date '+%b-%d';) | tr '[:upper:]' '[:lower:]'`
-            BUCKET_NAME=domcobb747-"${suffix}" && echo $BUCKET_NAME
-            echo Create state bucket...
-            aws s3api create-bucket \
-                --bucket $BUCKET_NAME \
-                --region us-east-1  
-        fi
+          BUCKET_EXISTS=$(aws s3api head-bucket --bucket $BUCKET_NAME 2>&1 || true)
+          if [[ -z "$BUCKET_EXISTS" ]]; then 
+              echo "Bucket already exist"
+          else 
+              echo "Creating bucket"
+              suffix=`(date '+%b-%d';) | tr '[:upper:]' '[:lower:]'`
+              BUCKET_NAME=domcobb747-"${suffix}" && echo $BUCKET_NAME
+              echo Create state bucket...
+              aws s3api create-bucket \
+                  --bucket $BUCKET_NAME \
+                  --region us-east-1  
+          fi
+          echo "::set-output name=bucket_name::${BUCKET_NAME}"
+    outputs:
+        bucket_name: ${{ steps.s3.outputs.bucket_name }}
+         
 
   create-infra:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy Infra
+        if: contains( ${GITHUB_REF##*/} , 'dev')
+        working-directory: ./terraform
+        env:
+          TERRAFORM_VERSION: "1.1.9"
+          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID_DEV}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY_DEV}}
+          TF_VAR_region: 'us-east-1'
+          TF_VAR_api_auth:  ${{secrets.API_AUTH_DEV}}
+          #TF_VAR_msk_cluster_arn: ${{secrets.MSK_CLUSTER_ARN_DEV}}
+          TF_VAR_vpc_subnet_id_1: ${{secrets.VPC_SUBNET_ID_1_DEV}}
+          #TF_VAR_vpc_subnet_id_2: ${{secrets.VPC_SUBNET_ID_2_DEV}}
+          TF_VAR_vpc_security_group_id_1: ${{secrets.VPC_SECURITY_GROUP_ID_1_DEV}}
+          #TF_VAR_vpc_security_group_id_2: ${{secrets.VPC_SECURITY_GROUP_ID_2_DEV}}
+          TF_VAR_state_bucket:  echo "${{ jobs.check-state-bucket.steps.s3.outputs.bucket_name }}"
+
         run: |
-        terraform init -backend-config "bucket=$TF_VAR_state_bucket" -reconfigure
+          git branch
+          echo Installing terraform
+          tf_version=$TERRAFORM_VERSION
+          wget https://releases.hashicorp.com/terraform/"$tf_version"/terraform_"$tf_version"_linux_amd64.zip
+          unzip terraform_"$tf_version"_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+
+          echo Terraform version
+          terraform --version
+
+          echo terraform input
+          
+          terraform init  -reconfigure \ 
+                          -backend-config "bucket=$TF_VAR_state_bucket" \
+                          -backend-config="key=terraform.hs.gateway.tfstate" \ 
+                          -backend-config="region=us-east-1"  \ 
+                          -backend-config="access_key=${{ secrets.AWS_ACCESS_KEY_ID_DEV }}"  \  
+                          -backend-config="secret_key=${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}" -no-color
+
+          echo Select terraform workspace
+          terraform workspace select dev
+
+          echo Validate selected workspace
+          terraform workspace list
+
+          echo Terraform validation
+          terraform validate
+
+          echo Terraform Plan
+          terraform plan 
+
+          echo Terraform Apply
+          terraform apply -auto-approve
